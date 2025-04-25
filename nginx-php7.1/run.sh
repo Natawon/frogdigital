@@ -14,6 +14,7 @@ echo 'sp.configuration_file=/etc/php/7.1/fpm/snuffleupagus.rules' >> /etc/php/7.
 
 sed -i '/pattern="PDF"/s/rights="none"/rights="read | write"/' /etc/ImageMagick-6/policy.xml
 # sed -i 's/^extension=dom\.so$/;extension=dom.so/' /etc/php/7.1/cli/conf.d/20-dom.ini
+sed -i 's/^;extension=dom\.so$/extension=dom.so/' /etc/php/7.1/cli/conf.d/20-dom.ini
 sed -i 's/^extension=dom\.so$/;extension=dom.so/' /etc/php/7.1/mods-available/dom.ini
 
 

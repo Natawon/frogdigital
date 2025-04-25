@@ -2,95 +2,101 @@ FROM ubuntu:20.04
 LABEL MAINTAINER="frogdigital"
 
 ENV DEBIAN_FRONTEND=noninteractive
+ENV PHP_VERSION=7.1.27
 
-# Base packages
+# ติดตั้ง packages พื้นฐาน
 RUN apt-get update && \
     apt-get -y dist-upgrade && \
-    apt-get -y install \
-        apt-utils \
-        curl \
-        wget \
-        openssh-client \
-        git \
-        ffmpeg \
-        nano \
-        ca-certificates \
-        software-properties-common \
-        gcc \
-        g++
+    apt-get install -y \
+    apt-utils \
+    curl \
+    wget \
+    openssh-client \
+    git \
+    ffmpeg \
+    nano \
+    ca-certificates \
+    software-properties-common \
+    gcc \
+    g++ \
+    make \
+    autoconf \
+    unzip \
+    pkg-config \
+    libssl-dev \
+    libxml2-dev \
+    libcurl4-openssl-dev \
+    libjpeg-dev \
+    libpng-dev \
+    libonig-dev \
+    libzip-dev \
+    libreadline-dev \
+    libsqlite3-dev \
+    libpq-dev \
+    libxslt1-dev \
+    libicu-dev \
+    nginx \
+    composer && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Add PHP and NGINX repositories
-RUN add-apt-repository -y ppa:ondrej/nginx-mainline && \
-    add-apt-repository -y ppa:ondrej/php && \
-    apt-get update
+# คอมไพล์ PHP 7.1.27 จาก source
+RUN curl -sSL https://museum.php.net/php7/php-${PHP_VERSION}.tar.gz | tar -xz && \
+    cd php-${PHP_VERSION} && \
+    ./configure \
+        --prefix=/usr/local/php \
+        --with-config-file-path=/usr/local/php/etc \
+        --with-config-file-scan-dir=/usr/local/php/etc/conf.d \
+        --enable-mbstring \
+        --enable-soap \
+        --enable-intl \
+        --enable-bcmath \
+        --enable-mysqlnd \
+        --with-mysqli=mysqlnd \
+        --with-pdo-mysql=mysqlnd \
+        --with-curl \
+        --with-openssl \
+        --with-zlib \
+        --with-readline \
+        --with-zip \
+        --with-gd \
+        --enable-fpm \
+        --enable-xml \
+        --with-libxml-dir \
+        --with-xsl \
+        --enable-sockets \
+    && make -j"$(nproc)" && make install && \
+    cd .. && rm -rf php-${PHP_VERSION}
 
-# Install PHP 7.1 and required packages
-RUN apt-get -y install \
-        nginx \
-        composer \
-        make \
-        php7.1 \
-        php7.1-fpm \
-        php7.1-common \
-        php7.1-tokenizer \
-        php7.1-curl \
-        php7.1-gd \
-        php7.1-intl \
-        php7.1-json \
-        php7.1-mbstring \
-        php7.1-mcrypt \
-        php7.1-mysql \
-        php7.1-opcache \
-        php7.1-pgsql \
-        php7.1-soap \
-        php7.1-sqlite3 \
-        php7.1-xml \
-        php7.1-xmlrpc \
-        php7.1-xsl \
-        php7.1-zip \
-        php-imagick && \
-    cp -r /etc/php /etc/php.orig && \
-    cp -r /etc/nginx /etc/nginx.orig && \
-    apt-get autoclean && \
-    apt-get -y autoremove
+# symlink
+RUN ln -s /usr/local/php/bin/php /usr/bin/php && \
+    ln -s /usr/local/php/sbin/php-fpm /usr/sbin/php-fpm
 
-# Install PHP dev tools
-RUN apt-get install -y \
-        php7.1-dev \
-        php7.1-cli \
-        git \
-        gcc \
-        make \
-        autoconf \
-        pkg-config
+# สร้าง php.ini
+RUN mkdir -p /usr/local/php/etc/conf.d && \
+    echo "date.timezone = Asia/Bangkok" > /usr/local/php/etc/conf.d/timezone.ini
 
-# Install Snuffleupagus
+# ติดตั้ง Snuffleupagus
 RUN git clone https://github.com/jvoisin/snuffleupagus.git /opt/snuffleupagus && \
     cd /opt/snuffleupagus && \
-    make && \
-    make install
+    make && make install
 
-# Configure Snuffleupagus
-RUN echo 'sp.disable_function.function("eval").drop();' > /etc/php/7.1/fpm/snuffleupagus.rules && \
-    echo 'extension=snuffleupagus.so' > /etc/php/7.1/fpm/conf.d/99-snuffleupagus.ini && \
-    echo 'sp.configuration_file=/etc/php/7.1/fpm/snuffleupagus.rules' >> /etc/php/7.1/fpm/conf.d/99-snuffleupagus.ini
+# ตั้งค่า Snuffleupagus สำหรับ PHP-FPM
+RUN mkdir -p /usr/local/php/etc/conf.d && \
+    echo 'sp.disable_function.function("eval").drop();' > /usr/local/php/etc/snuffleupagus.rules && \
+    echo 'extension=snuffleupagus.so' > /usr/local/php/etc/conf.d/99-snuffleupagus.ini && \
+    echo 'sp.configuration_file=/usr/local/php/etc/snuffleupagus.rules' >> /usr/local/php/etc/conf.d/99-snuffleupagus.ini
 
-# Clean up newer PHP versions that may conflict
-RUN apt-get remove -y php8.4 php8.4-cli php8.4-common || true && \
-    apt-get autoremove -y
+# เพิ่มไฟล์ phpinfo ทดสอบ
+RUN mkdir -p /var/www/html && echo "<?php phpinfo(); ?>" > /var/www/html/info.php
 
-# Add PHP info test file
-RUN echo "<?php phpinfo(); ?>" > /var/www/html/info.php
-
-# Copy filesystem overrides
+# คัดลอกระบบไฟล์เพิ่มเติม (เช่น config nginx หรือ php-fpm)
 COPY fs /
 
-# Copy run script
+# สคริปต์สำหรับรัน nginx + php-fpm
 ADD run.sh /root/run.sh
 RUN chmod +x /root/run.sh
 
-# Expose ports for nginx
 EXPOSE 80 443
 
-# Start command
+# Start everything
 CMD ["/bin/sh", "/root/run.sh"]
