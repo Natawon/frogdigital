@@ -6,7 +6,7 @@
 # docker rm pat
 # docker rmi pat
 # docker build -t frogdigital/ubuntu:platform-$1 .
-docker build --platform=linux/amd64 -t frogdigital/ubuntu:nginx-php7.1-$1 .
+docker build . -f Dockerfile-prd --platform=linux/amd64 -t frogdigital/ubuntu:nginx-php7.1-$1 
 docker tag frogdigital/ubuntu:nginx-php7.1-$1 frogdigital/ubuntu:nginx-php7.1-$1
 sleep 5
 
